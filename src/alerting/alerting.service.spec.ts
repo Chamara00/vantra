@@ -26,10 +26,28 @@ describe('AlertingService debounce', () => {
     expect(alertModel.create).not.toHaveBeenCalled();
   });
 
-  it('suppresses repeat alerts for a flapping vehicle within the debounce window (VANTRA-441)', async () => {
+    it('suppresses repeat alerts for a flapping vehicle within the debounce window (VANTRA-441)', async () => {
     alertModel.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue({ _id: 'recent' }) });
     const staleSince = new Date(Date.now() - 20 * 60 * 1000);
     const result = await service.checkVehicleOffline('v1', staleSince);
     expect(result).toBeNull();
+  });
+
+    it('raises a fresh alert once the previous one has been resolved', async () => {
+    alertModel.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
+    alertModel.create.mockResolvedValue({ _id: 'new-alert' });
+    const staleSince = new Date(Date.now() - 20 * 60 * 1000);
+    const result = await service.checkVehicleOffline('v1', staleSince);
+    expect(result).toEqual({ _id: 'new-alert' });
+  });
+
+  it('only treats unresolved alerts as blocking (regression from 3775723)', async () => {
+    alertModel.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
+    alertModel.create.mockResolvedValue({ _id: 'new-alert' });
+    const staleSince = new Date(Date.now() - 20 * 60 * 1000);
+    await service.checkVehicleOffline('v1', staleSince);
+    const query = alertModel.findOne.mock.calls[0][0];
+    expect(query).toEqual(expect.objectContaining({ resolvedAt: null }));
+    expect(query.createdAt).toBeUndefined();
   });
 });

@@ -28,17 +28,20 @@ export class AlertingService {
       return null;
     }
 
-    // Suppress if this vehicle raised an offline alert recently, full stop -
-    // resolved or not. Cuts down on repeat notifications for flapping vehicles.
-    const recent = await this.alertModel
+    // At most one open offline alert per vehicle. A resolved alert never
+    // blocks a new one - if the vehicle goes offline again, ops must know.
+    // No time window: a window on open alerts caused re-alerting every sweep
+    // once the open alert aged out (the real VANTRA-441 noise), and 3775723's
+    // fix of ignoring resolvedAt hid genuine repeat outages.
+    const openAlert = await this.alertModel
       .findOne({
         vehicleId,
         type: 'vehicle-offline',
-        createdAt: { $gte: new Date(Date.now() - DEBOUNCE_WINDOW_MS) },
+        resolvedAt: null,
       })
       .exec();
 
-    if (recent) {
+    if (openAlert) {
       return null;
     }
 
