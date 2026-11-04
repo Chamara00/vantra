@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   app:
     build: .
@@ -7,14 +5,15 @@ services:
       - "3000:3000"
     environment:
       MONGO_URI: mongodb://mongo:27017/vantra
-      JWT_SECRET: local-dev-secret
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
     depends_on:
-      - mongo
+      mongo:
+        condition: service_healthy
     deploy:
       resources:
         limits:
-          memory: 256M
-          cpus: "0.25"
+          memory: 1G
+          cpus: "1.0"
 
   mongo:
     image: mongo:7
