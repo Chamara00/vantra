@@ -2,10 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Vehicle, VehicleDocument } from './schemas/vehicle.schema';
+import { VehicleStatusCache } from '../common/cache/vehicle-status.cache';
 
 @Injectable()
 export class VehiclesService {
-  constructor(@InjectModel(Vehicle.name) private vehicleModel: Model<VehicleDocument>) {}
+  constructor(
+    @InjectModel(Vehicle.name) private vehicleModel: Model<VehicleDocument>,
+    private readonly vehicleStatusCache: VehicleStatusCache,
+  ) {}
 
   findAll() {
     return this.vehicleModel.find().exec();
@@ -15,7 +19,10 @@ export class VehiclesService {
     return this.vehicleModel.findOne({ vehicleId }).exec();
   }
 
-  create(vehicleId: string, fleetName: string) {
-    return this.vehicleModel.create({ vehicleId, fleetName });
+  async create(vehicleId: string, fleetName: string) {
+    const vehicle = await this.vehicleModel.create({ vehicleId, fleetName });
+    // The dashboard cache holds the vehicle list too.
+    this.vehicleStatusCache.clear();
+    return vehicle;
   }
 }

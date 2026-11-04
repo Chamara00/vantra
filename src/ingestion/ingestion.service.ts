@@ -4,6 +4,7 @@ import { Model } from 'mongoose';
 import { TelemetryEvent, TelemetryEventDocument } from './schemas/telemetry-event.schema';
 import { IngestTelemetryDto } from './dto/ingest-telemetry.dto';
 import { IngestSensorTelemetryDto } from './dto/ingest-sensor-telemetry.dto';
+import { VehicleStatusCache } from '../common/cache/vehicle-status.cache';
 import {
   isNotFuture,
   isPlausibleCoordinate,
@@ -16,6 +17,7 @@ import {
 export class IngestionService {
   constructor(
     @InjectModel(TelemetryEvent.name) private telemetryModel: Model<TelemetryEventDocument>,
+    private readonly vehicleStatusCache: VehicleStatusCache,
   ) {}
 
   async ingest(dto: IngestTelemetryDto) {
@@ -30,6 +32,7 @@ export class IngestionService {
       recordedAt: new Date(dto.recordedAt),
       location: { lat: dto.lat, lng: dto.lng },
     });
+    this.vehicleStatusCache.recordEvent(event.toObject());
     return event;
   }
 
@@ -65,6 +68,7 @@ export class IngestionService {
       batteryLevel,
       engineDiagnostics: dto.engineDiagnostics,
     });
+    this.vehicleStatusCache.recordEvent(event.toObject());
     return event;
   }
 }

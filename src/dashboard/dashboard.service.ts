@@ -3,12 +3,14 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { VehiclesService } from '../vehicles/vehicles.service';
 import { TelemetryEvent, TelemetryEventDocument } from '../ingestion/schemas/telemetry-event.schema';
+import { VehicleStatusCache, VehicleStatusSnapshot } from '../common/cache/vehicle-status.cache';
 
 @Injectable()
 export class DashboardService {
   constructor(
     private readonly vehiclesService: VehiclesService,
     @InjectModel(TelemetryEvent.name) private telemetryModel: Model<TelemetryEventDocument>,
+    private readonly vehicleStatusCache: VehicleStatusCache,
   ) {}
 
   async getFleetOverview() {
@@ -20,6 +22,16 @@ export class DashboardService {
    * This is the most frequently hit read on the dashboard.
    */
   async getVehicleStatuses() {
+    const { vehicles, latestByVehicleId } = await this.vehicleStatusCache.get(() =>
+      this.loadVehicleStatuses(),
+    );
+    return vehicles.map((vehicle) => ({
+      vehicle,
+      latest: latestByVehicleId.get(vehicle.vehicleId) ?? null,
+    }));
+  }
+
+  private async loadVehicleStatuses(): Promise<VehicleStatusSnapshot> {
     const vehicles = await this.vehiclesService.findAll();
 
     // One aggregation instead of one query per vehicle. The $sort matches the
@@ -32,9 +44,6 @@ export class DashboardService {
       .exec();
     const latestByVehicleId = new Map(latestPerVehicle.map((g) => [g._id, g.latest]));
 
-    return vehicles.map((vehicle) => ({
-      vehicle,
-      latest: latestByVehicleId.get(vehicle.vehicleId) ?? null,
-    }));
+    return { vehicles, latestByVehicleId };
   }
 }
