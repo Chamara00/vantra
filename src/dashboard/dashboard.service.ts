@@ -21,16 +21,20 @@ export class DashboardService {
    */
   async getVehicleStatuses() {
     const vehicles = await this.vehiclesService.findAll();
-    const statuses: { vehicle: unknown; latest: unknown }[] = [];
-    for (const vehicle of vehicles) {
-      // One query per vehicle - fine for a handful of vehicles in dev,
-      // but this is the hot path so keep an eye on it as fleet size grows.
-      const latest = await this.telemetryModel
-        .findOne({ vehicleId: vehicle.vehicleId })
-        .sort({ recordedAt: -1 })
-        .exec();
-      statuses.push({ vehicle, latest });
-    }
-    return statuses;
+
+    // One aggregation instead of one query per vehicle. The $sort matches the
+    // { vehicleId: 1, recordedAt: -1 } index, so $first is each vehicle's newest event.
+    const latestPerVehicle = await this.telemetryModel
+      .aggregate([
+        { $sort: { vehicleId: 1, recordedAt: -1 } },
+        { $group: { _id: '$vehicleId', latest: { $first: '$$ROOT' } } },
+      ])
+      .exec();
+    const latestByVehicleId = new Map(latestPerVehicle.map((g) => [g._id, g.latest]));
+
+    return vehicles.map((vehicle) => ({
+      vehicle,
+      latest: latestByVehicleId.get(vehicle.vehicleId) ?? null,
+    }));
   }
 }
