@@ -1,0 +1,132 @@
+openapi: 3.0.3
+info:
+  title: Vantra Alerting Service
+  version: 1.0.0
+  description: |
+    Standalone service that owns vehicle alerts and runs the offline sweep.
+
+    **Callers:** the Vantra monolith (backend for the dashboard). Dashboard
+    users never call this service directly; the monolith exposes
+    `GET /alerts/{vehicleId}` and `POST /admin/vehicles/{vehicleId}/force-recalibrate`
+    and forwards them here.
+
+    **Auth:** every endpoint except `/health` requires the shared
+    service-to-service key in the `x-internal-api-key` header.
+
+    **Offline sweep (every 5 min):** a vehicle whose latest reading is older
+    than 15 minutes gets one `vehicle-offline` alert. At most one open alert per
+    vehicle; a resolved alert never blocks a new one. Last-seen times come from
+    the monolith's `GET /internal/vehicle-last-seen` (same key). If the
+    monolith is unreachable, that sweep is skipped and the next one retries.
+servers:
+  - url: http://localhost:3001
+    description: Local (docker-compose)
+security:
+  - internalApiKey: []
+paths:
+  /health:
+    get:
+      summary: Liveness check
+      security: []
+      responses:
+        '200':
+          description: Service is running
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+  /alerts:
+    get:
+      summary: List open alerts for a vehicle
+      parameters:
+        - name: vehicleId
+          in: query
+          required: true
+          schema:
+            type: string
+            example: VH-00001
+      responses:
+        '200':
+          description: Open (unresolved) alerts, possibly empty
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Alert'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+  /alerts/{id}/resolve:
+    post:
+      summary: Resolve an alert
+      description: Sets `resolvedAt` to now. Resolving an already-resolved alert updates `resolvedAt` again.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: 6aeb30205f88cd950098e565
+      responses:
+        '200':
+          description: The updated alert
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Alert'
+        '401':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+components:
+  securitySchemes:
+    internalApiKey:
+      type: apiKey
+      in: header
+      name: x-internal-api-key
+  schemas:
+    Alert:
+      type: object
+      required: [_id, vehicleId, type, message, resolvedAt, createdAt, updatedAt]
+      properties:
+        _id:
+          type: string
+        vehicleId:
+          type: string
+          example: VH-00001
+        type:
+          type: string
+          example: vehicle-offline
+        message:
+          type: string
+          example: Vehicle VH-00001 has not reported telemetry in over 15 minutes
+        resolvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Error:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+        message:
+          type: string
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

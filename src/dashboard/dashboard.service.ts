@@ -31,6 +31,16 @@ export class DashboardService {
     }));
   }
 
+  async getVehicleLastSeen() {
+    const { vehicles, latestByVehicleId } = await this.vehicleStatusCache.get(() =>
+      this.loadVehicleStatuses(),
+    );
+    return vehicles.map((vehicle) => ({
+      vehicleId: vehicle.vehicleId,
+      lastSeenAt: latestByVehicleId.get(vehicle.vehicleId)?.recordedAt ?? null,
+    }));
+  }
+
   private async loadVehicleStatuses(): Promise<VehicleStatusSnapshot> {
     const vehicles = await this.vehiclesService.findAll();
 

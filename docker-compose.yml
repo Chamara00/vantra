@@ -6,6 +6,8 @@ services:
     environment:
       MONGO_URI: mongodb://mongo:27017/vantra
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      ALERTING_SERVICE_URL: http://alerting:3001
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?set INTERNAL_API_KEY in .env}
     depends_on:
       mongo:
         condition: service_healthy
@@ -14,6 +16,26 @@ services:
         limits:
           memory: 1G
           cpus: "1.0"
+
+  # Standalone alerting service (src/alerting-service). Same image, own process.
+  alerting:
+    build: .
+    command: ["npm", "run", "start:alerting"]
+    ports:
+      - "3001:3001"
+    environment:
+      MONGO_URI: mongodb://mongo:27017/vantra
+      PORT: 3001
+      MONOLITH_URL: http://app:3000
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?set INTERNAL_API_KEY in .env}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
 
   mongo:
     image: mongo:7

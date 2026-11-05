@@ -7,6 +7,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/src/main.js",
     "start:dev": "ts-node-dev --respawn src/main.ts",
+    "start:alerting": "node dist/src/alerting-service/main.js",
     "seed": "ts-node scripts/seed.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "jest"
