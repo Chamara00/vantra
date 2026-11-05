@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Model } from 'mongoose';
 import { TelemetryEvent, TelemetryEventDocument } from '../../ingestion/schemas/telemetry-event.schema';
+import { VehicleStatusCache } from '../cache/vehicle-status.cache';
 
 const DRIFT_THRESHOLD_MS = 3 * 60 * 1000;
 
@@ -22,6 +23,7 @@ export class DriftCorrectionJob {
 
   constructor(
     @InjectModel(TelemetryEvent.name) private telemetryModel: Model<TelemetryEventDocument>,
+    private readonly vehicleStatusCache: VehicleStatusCache,
   ) {}
 
   @Cron(CronExpression.EVERY_HOUR)
@@ -45,6 +47,7 @@ export class DriftCorrectionJob {
       }
     }
     if (corrected > 0) {
+      this.vehicleStatusCache.clear();
       this.logger.debug(`Drift-corrected ${corrected} telemetry event(s)`);
     }
   }
